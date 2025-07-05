@@ -2,6 +2,12 @@
 
 Simple web view to a [Taskmaster AI](https://www.task-master.dev/) database. View, filter, and explore your tasks through a browser interface stright from your project.
 
+## Screenshot
+
+![Taskmaster UI Interface](image.png)
+
+*Taskmaster UI showing tasks with dark theme interface*
+
 ## Features
 
 - Task visualization with status indicators
