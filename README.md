@@ -1,6 +1,6 @@
 # Taskmaster UI
 
-Simple web view to a [Taskmaster AI](https://www.task-master.dev/) database. View, filter, and explore your tasks through a browser interface stright from your project.
+Simple web view to a [Taskmaster AI](https://www.task-master.dev/) database. View, filter, and explore your tasks through a browser interface straight from your project.
 
 ## Screenshot
 
