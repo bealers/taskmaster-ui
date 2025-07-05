@@ -21,32 +21,37 @@ Simple web view to a [Taskmaster AI](https://www.task-master.dev/) database. Vie
 
 ### Installation
 
-1. Clone this repository:
+Clone this repository inside your project & build:
 ```bash
-git clone https://github.com/yourusername/taskmaster-ui.git
-cd taskmaster-ui
+git clone https://github.com/bealers/taskmaster-ui.git
+cd taskmaster-ui && npm install
 ```
 
-2. Install dependencies:
+For development with automatic rebuilding:
+
 ```bash
-npm install
+npm run dev
 ```
 
-3. Build the project:
+Alternatively:
+
+
+Build the project:
+
 ```bash
 npm run build
 ```
 
-4. Run from your Taskmaster project directory:
+Run from your Taskmaster project directory:
 ```bash
 # Navigate to your project with .taskmaster/ directory
 cd /path/to/your/project
 
-# Start the server
+# Start the server manually
 node /path/to/taskmaster-ui/dist/server.js
 ```
 
-5. Open your browser to `http://localhost:3001`
+Open your browser to `http://localhost:3001`
 
 ### Alternative Usage
 
@@ -55,15 +60,6 @@ Specify custom path:
 node dist/server.js --taskmaster=/custom/path/to/.taskmaster
 ```
 
-Run from anywhere (auto-detection):
-The server will automatically find your `.taskmaster` directory by walking up from the current directory.
-
-### Development Mode
-
-For development with automatic rebuilding:
-```bash
-npm run dev
-```
 
 ## File Structure
 
@@ -121,22 +117,6 @@ If your `.taskmaster` directory is in a non-standard location:
 node dist/server.js --taskmaster=/path/to/your/.taskmaster
 ```
 
-## Development
-
-### Architecture
-
-- Backend: Express.js server with TypeScript
-- Frontend: Server-side rendered EJS templates with vanilla JavaScript
-- Styling: Custom CSS with dark theme
-- Markdown: Marked.js for document rendering
-- File Watching: Chokidar for real-time updates
-
-### Adding Features
-
-1. Server Routes: Add new API endpoints in `src/server.ts`
-2. Frontend Logic: Modify the JavaScript in `views/tasks-simple.ejs`
-3. Styling: Update CSS in the `<style>` section of the EJS template
-
 ### API Endpoints
 
 - `GET /` - Main task interface
@@ -152,4 +132,4 @@ node dist/server.js --taskmaster=/path/to/your/.taskmaster
 
 ---
 
-Created by [@bealers](https://bealers.com)
+by [@bealers](https://bealers.com) 
