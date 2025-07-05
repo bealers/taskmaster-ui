@@ -1,0 +1,1222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Taskmaster Visualization - <%= currentTag %></title>
+  <link rel="stylesheet" href="/css/styles.css">
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+</head>
+<body>
+  <header class="header">
+    <div class="header-content">
+      <h1>
+        <span class="icon">📊</span>
+        Taskmaster Visualization
+      </h1>
+      <div class="header-info">
+        <span class="current-tag">Current Tag: <strong><%= currentTag %></strong></span>
+        <span class="server-info">Port: <%= serverInfo.port %></span>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <aside class="sidebar">
+      <!-- Tag Selector -->
+      <div class="section">
+        <h3>📂 Tags</h3>
+        <select id="tag-selector" class="tag-selector">
+          <% availableTags.forEach(tag => { %>
+            <option value="<%= tag %>" <%= tag === currentTag ? 'selected' : '' %>>
+              <%= tag %> 
+              <%= tasksData[tag] ? `(${tasksData[tag].tasks.length} tasks)` : '' %>
+            </option>
+          <% }); %>
+        </select>
+      </div>
+
+      <!-- Filters -->
+      <div class="section">
+        <h3>🔍 Filters</h3>
+        <div class="filter-group">
+          <label for="status-filter">Status:</label>
+          <select id="status-filter" class="filter-select">
+            <option value="all">All Statuses</option>
+            <option value="pending">⏳ Pending</option>
+            <option value="in-progress">🔄 In Progress</option>
+            <option value="done">✅ Done</option>
+            <option value="cancelled">❌ Cancelled</option>
+            <option value="deferred">⏸️ Deferred</option>
+          </select>
+        </div>
+        
+        <div class="filter-group">
+          <label for="priority-filter">Priority:</label>
+          <select id="priority-filter" class="filter-select">
+            <option value="all">All Priorities</option>
+            <option value="high">🔴 High</option>
+            <option value="medium">🟡 Medium</option>
+            <option value="low">🟢 Low</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label for="has-subtasks-filter">Has Subtasks:</label>
+          <select id="has-subtasks-filter" class="filter-select">
+            <option value="all">All Tasks</option>
+            <option value="yes">📋 With Subtasks</option>
+            <option value="no">📄 No Subtasks</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- View Options -->
+      <div class="section">
+        <h3>👁️ View Options</h3>
+        <div class="view-options">
+          <label class="checkbox-label">
+            <input type="checkbox" id="show-dependencies" checked>
+            Show Dependencies
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="show-subtasks" checked>
+            Show Subtasks
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="auto-refresh" checked>
+            Auto Refresh
+          </label>
+        </div>
+      </div>
+
+      <!-- Show/Hide Controls -->
+      <div class="section">
+        <h3>🔍 Show/Hide Nodes</h3>
+        <div class="view-options">
+          <label class="checkbox-label">
+            <input type="checkbox" id="hide-completed">
+            Hide Completed Tasks
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="hide-low-priority">
+            Hide Low Priority
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="show-only-blocked">
+            Show Only Blocked
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="collapse-subtasks">
+            Collapse All Subtasks
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="highlight-dependencies">
+            Highlight Dependencies
+          </label>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="section">
+        <h3>⚡ Quick Filters</h3>
+        <div class="quick-filters">
+          <button class="filter-btn" onclick="showOnlyActive()">🎯 Active Only</button>
+          <button class="filter-btn" onclick="showOnlyHigh()">🔴 High Priority</button>
+          <button class="filter-btn" onclick="showWithSubtasks()">📋 With Subtasks</button>
+          <button class="filter-btn" onclick="showBlocked()">🚫 Blocked</button>
+          <button class="filter-btn" onclick="resetFilters()">🔄 Reset All</button>
+        </div>
+      </div>
+
+      <!-- Task Details -->
+      <div id="task-details" class="section task-details">
+        <h3>📝 Task Details</h3>
+        <div id="detail-content">
+          <p class="no-selection">Select a task to view details</p>
+        </div>
+      </div>
+
+      <!-- Statistics -->
+      <div class="section">
+        <h3>📊 Statistics</h3>
+        <div id="stats-content" class="stats-grid">
+          <!-- Will be populated by JavaScript -->
+        </div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <div class="visualization-controls">
+        <button id="zoom-fit" class="control-btn">🔍 Fit to Screen</button>
+        <button id="zoom-reset" class="control-btn">🔄 Reset Zoom</button>
+        <button id="layout-toggle" class="control-btn">📐 Toggle Layout</button>
+        <button id="export-svg" class="control-btn">💾 Export SVG</button>
+      </div>
+      
+      <div id="visualization" class="visualization">
+        <div class="loading">
+          <div class="spinner"></div>
+          <p>Loading task visualization...</p>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Task Detail Modal -->
+  <div id="task-modal" class="modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <div id="modal-body">
+        <!-- Modal content will be populated by JavaScript -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Global data from server
+    const taskData = <%- JSON.stringify(tasksData) %>;
+    const stateData = <%- JSON.stringify(stateData) %>;
+    let currentTag = '<%= currentTag %>';
+    let currentTasks = taskData[currentTag]?.tasks || [];
+    let currentLayout = 'tree'; // tree, force, circular
+    let zoom, svg, g;
+
+    // Initialize the application when DOM is loaded
+    document.addEventListener('DOMContentLoaded', () => {
+      initializeVisualization();
+      setupEventListeners();
+      updateStatistics();
+      
+      // Auto-refresh functionality
+      if (document.getElementById('auto-refresh').checked) {
+        setInterval(refreshData, 5000); // Refresh every 5 seconds
+      }
+    });
+
+    function initializeVisualization() {
+      const container = document.getElementById('visualization');
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+
+      // Clear any existing visualization
+      container.innerHTML = '';
+
+      // Create SVG
+      svg = d3.select(container)
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height)
+        .style('background-color', '#fafafa');
+
+      // Add zoom behavior
+      zoom = d3.zoom()
+        .scaleExtent([0.1, 4])
+        .on('zoom', (event) => {
+          g.attr('transform', event.transform);
+        });
+
+      svg.call(zoom);
+
+      // Create main group for zoomable content
+      g = svg.append('g');
+
+      renderVisualization();
+    }
+
+    function renderVisualization() {
+      if (!currentTasks || currentTasks.length === 0) {
+        showEmptyState();
+        return;
+      }
+
+      // Clear previous visualization
+      g.selectAll('*').remove();
+
+      // Filter tasks based on current filters
+      const filteredTasks = applyFilters(currentTasks);
+
+      switch (currentLayout) {
+        case 'tree':
+          renderTreeLayout(filteredTasks);
+          break;
+        case 'force':
+          renderForceLayout(filteredTasks);
+          break;
+        case 'circular':
+          renderCircularLayout(filteredTasks);
+          break;
+      }
+
+      updateStatistics();
+    }
+
+    function renderTreeLayout(tasks) {
+      const width = svg.attr('width');
+      const height = svg.attr('height');
+      
+      // Get current view options
+      const collapseSubtasks = document.getElementById('collapse-subtasks')?.checked || false;
+      const highlightDependencies = document.getElementById('highlight-dependencies')?.checked || false;
+
+      // Create hierarchy data
+      const hierarchyData = createHierarchyData(tasks, collapseSubtasks);
+      
+      // Create tree layout
+      const treeLayout = d3.tree()
+        .size([height - 100, width - 200])
+        .separation((a, b) => (a.parent === b.parent ? 1 : 2));
+
+      const root = d3.hierarchy(hierarchyData);
+      treeLayout(root);
+
+      // Draw links
+      const links = g.selectAll('.link')
+        .data(root.links())
+        .enter()
+        .append('path')
+        .attr('class', d => {
+          let classes = 'link';
+          if (highlightDependencies && isDependencyLink(d)) {
+            classes += ' highlighted';
+          }
+          return classes;
+        })
+        .attr('d', d3.linkHorizontal()
+          .x(d => d.y + 100)
+          .y(d => d.x + 50))
+        .style('fill', 'none')
+        .style('stroke', d => highlightDependencies && isDependencyLink(d) ? '#667eea' : '#999')
+        .style('stroke-opacity', 0.6)
+        .style('stroke-width', d => highlightDependencies && isDependencyLink(d) ? '3px' : '1.5px');
+
+      // Draw nodes
+      const nodes = g.selectAll('.node')
+        .data(root.descendants())
+        .enter()
+        .append('g')
+        .attr('class', d => {
+          let classes = `node ${d.data.type || 'root'} status-${d.data.status || 'unknown'}`;
+          
+          // Add special classes
+          if (isBlockedTask(d.data)) classes += ' blocked';
+          if (d.data.priority === 'high') classes += ' high-priority';
+          if (collapseSubtasks && d.data.type === 'subtask') classes += ' collapsed';
+          if (highlightDependencies && hasHighlightedDependencies(d.data)) classes += ' highlighted';
+          
+          return classes;
+        })
+        .attr('transform', d => `translate(${d.y + 100}, ${d.x + 50})`)
+        .style('cursor', 'pointer')
+        .on('click', (event, d) => showTaskDetails(d.data))
+        .on('contextmenu', (event, d) => showContextMenu(event, d.data))
+        .on('mouseover', (event, d) => showTooltip(event, d.data))
+        .on('mouseout', hideTooltip);
+
+      // Add node circles
+      nodes.append('circle')
+        .attr('r', d => d.data.type === 'subtask' ? 8 : 12)
+        .style('fill', d => getStatusColor(d.data.status))
+        .style('stroke', d => {
+          if (isBlockedTask(d.data)) return '#dc3545';
+          return getPriorityColor(d.data.priority);
+        })
+        .style('stroke-width', d => isBlockedTask(d.data) ? '3px' : '2px')
+        .style('stroke-dasharray', d => isBlockedTask(d.data) ? '3,3' : 'none');
+
+      // Add progress indicators for tasks with subtasks
+      nodes.filter(d => d.data.subtasks && d.data.subtasks.length > 0)
+        .append('circle')
+        .attr('r', 16)
+        .style('fill', 'none')
+        .style('stroke', '#e0e0e0')
+        .style('stroke-width', '2px');
+
+      nodes.filter(d => d.data.subtasks && d.data.subtasks.length > 0)
+        .append('circle')
+        .attr('r', 16)
+        .style('fill', 'none')
+        .style('stroke', '#4caf50')
+        .style('stroke-width', '2px')
+        .style('stroke-dasharray', d => {
+          const completed = d.data.subtasks.filter(st => st.status === 'done').length;
+          const total = d.data.subtasks.length;
+          const progress = (completed / total) * 100;
+          const circumference = 2 * Math.PI * 16;
+          return `${circumference * progress / 100}, ${circumference}`;
+        })
+        .attr('transform', 'rotate(-90)');
+
+      // Add node labels
+      nodes.append('text')
+        .attr('dy', '.35em')
+        .attr('x', d => d.children ? -25 : 25)
+        .style('text-anchor', d => d.children ? 'end' : 'start')
+        .style('font-size', '12px')
+        .style('font-family', 'sans-serif')
+        .style('font-weight', d => d.data.priority === 'high' ? 'bold' : 'normal')
+        .text(d => {
+          if (!d.data.title) return 'Root';
+          const maxLength = d.data.type === 'subtask' ? 20 : 30;
+          return d.data.title.length > maxLength 
+            ? d.data.title.substring(0, maxLength) + '...'
+            : d.data.title;
+        });
+
+      // Add priority indicators
+      nodes.filter(d => d.data.priority === 'high')
+        .append('text')
+        .attr('dy', '-20')
+        .attr('x', '0')
+        .style('text-anchor', 'middle')
+        .style('font-size', '14px')
+        .text('🔴');
+
+      // Add blocked indicators
+      nodes.filter(d => isBlockedTask(d.data))
+        .append('text')
+        .attr('dy', '30')
+        .attr('x', '0')
+        .style('text-anchor', 'middle')
+        .style('font-size', '12px')
+        .text('🚫');
+    }
+
+    function isBlockedTask(task) {
+      if (!task.dependencies || task.dependencies.length === 0) return false;
+      return task.dependencies.some(depId => {
+        const dep = currentTasks.find(t => t.id == depId);
+        return dep && dep.status !== 'done';
+      });
+    }
+
+    function isDependencyLink(linkData) {
+      // This would need to be implemented based on your link structure
+      // For now, return false as this is complex to determine from tree links
+      return false;
+    }
+
+    function hasHighlightedDependencies(task) {
+      return task.dependencies && task.dependencies.length > 0;
+    }
+
+    function showContextMenu(event, task) {
+      event.preventDefault();
+      
+      // Remove any existing context menu
+      d3.selectAll('.context-menu').remove();
+      
+      const contextMenu = d3.select('body')
+        .append('div')
+        .attr('class', 'context-menu')
+        .style('position', 'absolute')
+        .style('left', (event.pageX) + 'px')
+        .style('top', (event.pageY) + 'px');
+
+      const menuItems = [
+        { text: '📝 View Details', action: () => showTaskDetails(task) },
+        { text: '🔍 Show Full Modal', action: () => showFullTaskModal(task) },
+        { separator: true },
+        { text: '✅ Mark as Done', action: () => updateTaskStatus(task, 'done') },
+        { text: '🚧 Mark In Progress', action: () => updateTaskStatus(task, 'in-progress') },
+        { text: '⏸️ Mark as Deferred', action: () => updateTaskStatus(task, 'deferred') },
+        { separator: true },
+        { text: '🔗 Highlight Dependencies', action: () => highlightTaskDependencies(task) }
+      ];
+
+      menuItems.forEach(item => {
+        if (item.separator) {
+          contextMenu.append('div').attr('class', 'context-menu-separator');
+        } else {
+          contextMenu.append('div')
+            .attr('class', 'context-menu-item')
+            .html(item.text)
+            .on('click', () => {
+              item.action();
+              d3.selectAll('.context-menu').remove();
+            });
+        }
+      });
+
+      // Remove context menu when clicking elsewhere
+      d3.select('body').on('click.context-menu', () => {
+        d3.selectAll('.context-menu').remove();
+        d3.select('body').on('click.context-menu', null);
+      });
+    }
+
+    function updateTaskStatus(task, newStatus) {
+      // This would integrate with your taskmaster API
+      console.log(`Would update task ${task.id} to status: ${newStatus}`);
+      // For now, just update locally and re-render
+      const taskIndex = currentTasks.findIndex(t => t.id === task.id);
+      if (taskIndex !== -1) {
+        currentTasks[taskIndex].status = newStatus;
+        renderVisualization();
+      }
+    }
+
+    function highlightTaskDependencies(task) {
+      // Highlight this task and its dependencies
+      d3.selectAll('.node').classed('highlighted', false);
+      d3.selectAll('.link').classed('highlighted', false);
+      
+      if (task.dependencies) {
+        task.dependencies.forEach(depId => {
+          d3.selectAll(`.node`).filter(d => d.data.id == depId).classed('highlighted', true);
+        });
+      }
+      
+      d3.selectAll(`.node`).filter(d => d.data.id === task.id).classed('highlighted', true);
+    }
+
+    function renderForceLayout(tasks) {
+      const width = svg.attr('width');
+      const height = svg.attr('height');
+
+      // Prepare nodes and links for force simulation
+      const nodes = [];
+      const links = [];
+
+      // Add task nodes
+      tasks.forEach(task => {
+        nodes.push({
+          id: task.id,
+          ...task,
+          type: 'task'
+        });
+
+        // Add subtask nodes
+        if (task.subtasks) {
+          task.subtasks.forEach(subtask => {
+            nodes.push({
+              id: `${task.id}.${subtask.id}`,
+              ...subtask,
+              type: 'subtask',
+              parentId: task.id
+            });
+
+            // Link subtask to parent
+            links.push({
+              source: task.id,
+              target: `${task.id}.${subtask.id}`,
+              type: 'parent-child'
+            });
+          });
+        }
+
+        // Add dependency links
+        if (task.dependencies) {
+          task.dependencies.forEach(depId => {
+            links.push({
+              source: depId,
+              target: task.id,
+              type: 'dependency'
+            });
+          });
+        }
+      });
+
+      // Create force simulation
+      const simulation = d3.forceSimulation(nodes)
+        .force('link', d3.forceLink(links).id(d => d.id).distance(80))
+        .force('charge', d3.forceManyBody().strength(-300))
+        .force('center', d3.forceCenter(width / 2, height / 2))
+        .force('collision', d3.forceCollide().radius(20));
+
+      // Draw links
+      const link = g.selectAll('.link')
+        .data(links)
+        .enter()
+        .append('line')
+        .attr('class', d => `link ${d.type}`)
+        .style('stroke', d => d.type === 'dependency' ? '#ff6b6b' : '#999')
+        .style('stroke-opacity', 0.6)
+        .style('stroke-width', d => d.type === 'dependency' ? '2px' : '1.5px')
+        .style('stroke-dasharray', d => d.type === 'dependency' ? '5,5' : 'none');
+
+      // Draw nodes
+      const node = g.selectAll('.node')
+        .data(nodes)
+        .enter()
+        .append('g')
+        .attr('class', d => `node ${d.type} status-${d.status}`)
+        .style('cursor', 'pointer')
+        .call(d3.drag()
+          .on('start', dragStarted)
+          .on('drag', dragged)
+          .on('end', dragEnded))
+        .on('click', (event, d) => showTaskDetails(d))
+        .on('mouseover', (event, d) => showTooltip(event, d))
+        .on('mouseout', hideTooltip);
+
+      // Add node circles
+      node.append('circle')
+        .attr('r', d => d.type === 'subtask' ? 8 : 12)
+        .style('fill', d => getStatusColor(d.status))
+        .style('stroke', d => getPriorityColor(d.priority))
+        .style('stroke-width', '2px');
+
+      // Add node labels
+      node.append('text')
+        .attr('dy', '20')
+        .style('text-anchor', 'middle')
+        .style('font-size', '10px')
+        .style('font-family', 'sans-serif')
+        .text(d => {
+          const maxLength = d.type === 'subtask' ? 15 : 20;
+          return d.title && d.title.length > maxLength 
+            ? d.title.substring(0, maxLength) + '...'
+            : d.title || `Task ${d.id}`;
+        });
+
+      // Update positions on simulation tick
+      simulation.on('tick', () => {
+        link
+          .attr('x1', d => d.source.x)
+          .attr('y1', d => d.source.y)
+          .attr('x2', d => d.target.x)
+          .attr('y2', d => d.target.y);
+
+        node
+          .attr('transform', d => `translate(${d.x}, ${d.y})`);
+      });
+
+      function dragStarted(event, d) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+      }
+
+      function dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+      }
+
+      function dragEnded(event, d) {
+        if (!event.active) simulation.alphaTarget(0);
+        d.fx = null;
+        d.fy = null;
+      }
+    }
+
+    function renderCircularLayout(tasks) {
+      const width = svg.attr('width');
+      const height = svg.attr('height');
+      const radius = Math.min(width, height) / 2 - 50;
+
+      // Prepare hierarchy data
+      const hierarchyData = createHierarchyData(tasks);
+      const root = d3.hierarchy(hierarchyData);
+
+      // Create radial tree layout
+      const tree = d3.tree()
+        .size([2 * Math.PI, radius])
+        .separation((a, b) => (a.parent === b.parent ? 1 : 2) / a.depth);
+
+      tree(root);
+
+      // Center the visualization
+      g.attr('transform', `translate(${width / 2}, ${height / 2})`);
+
+      // Draw links
+      const links = g.selectAll('.link')
+        .data(root.links())
+        .enter()
+        .append('path')
+        .attr('class', 'link')
+        .style('fill', 'none')
+        .style('stroke', '#999')
+        .style('stroke-opacity', 0.6)
+        .style('stroke-width', '1.5px')
+        .attr('d', d3.linkRadial()
+          .angle(d => d.x)
+          .radius(d => d.y));
+
+      // Draw nodes
+      const nodes = g.selectAll('.node')
+        .data(root.descendants())
+        .enter()
+        .append('g')
+        .attr('class', d => `node ${d.data.type || 'root'} status-${d.data.status || 'unknown'}`)
+        .attr('transform', d => `
+          rotate(${d.x * 180 / Math.PI - 90})
+          translate(${d.y}, 0)
+        `)
+        .style('cursor', 'pointer')
+        .on('click', (event, d) => showTaskDetails(d.data))
+        .on('mouseover', (event, d) => showTooltip(event, d.data))
+        .on('mouseout', hideTooltip);
+
+      // Add node circles
+      nodes.append('circle')
+        .attr('r', d => d.data.type === 'subtask' ? 6 : 10)
+        .style('fill', d => getStatusColor(d.data.status))
+        .style('stroke', d => getPriorityColor(d.data.priority))
+        .style('stroke-width', '2px');
+
+      // Add node labels
+      nodes.append('text')
+        .attr('dy', '0.31em')
+        .attr('x', d => d.x < Math.PI === !d.children ? 6 : -6)
+        .attr('text-anchor', d => d.x < Math.PI === !d.children ? 'start' : 'end')
+        .attr('transform', d => d.x >= Math.PI ? 'rotate(180)' : null)
+        .style('font-size', '10px')
+        .style('font-family', 'sans-serif')
+        .text(d => {
+          if (!d.data.title) return 'Root';
+          const maxLength = 20;
+          return d.data.title.length > maxLength 
+            ? d.data.title.substring(0, maxLength) + '...'
+            : d.data.title;
+        });
+    }
+
+    function createHierarchyData(tasks, collapseSubtasks = false) {
+      const root = {
+        name: 'Tasks',
+        children: []
+      };
+
+      tasks.forEach(task => {
+        const taskNode = {
+          ...task,
+          name: task.title,
+          children: []
+        };
+
+        // Only add subtasks if not collapsed
+        if (task.subtasks && task.subtasks.length > 0 && !collapseSubtasks) {
+          taskNode.children = task.subtasks.map(subtask => ({
+            ...subtask,
+            name: subtask.title,
+            type: 'subtask'
+          }));
+        }
+
+        root.children.push(taskNode);
+      });
+
+      return root;
+    }
+
+    function applyFilters(tasks) {
+      const statusFilter = document.getElementById('status-filter').value;
+      const priorityFilter = document.getElementById('priority-filter').value;
+      const hasSubtasksFilter = document.getElementById('has-subtasks-filter').value;
+      
+      // Show/Hide controls
+      const hideCompleted = document.getElementById('hide-completed')?.checked || false;
+      const hideLowPriority = document.getElementById('hide-low-priority')?.checked || false;
+      const showOnlyBlocked = document.getElementById('show-only-blocked')?.checked || false;
+
+      return tasks.filter(task => {
+        // Status filter
+        if (statusFilter !== 'all' && task.status !== statusFilter) {
+          return false;
+        }
+
+        // Priority filter
+        if (priorityFilter !== 'all' && task.priority !== priorityFilter) {
+          return false;
+        }
+
+        // Has subtasks filter
+        if (hasSubtasksFilter !== 'all') {
+          const hasSubtasks = task.subtasks && task.subtasks.length > 0;
+          if (hasSubtasksFilter === 'yes' && !hasSubtasks) {
+            return false;
+          }
+          if (hasSubtasksFilter === 'no' && hasSubtasks) {
+            return false;
+          }
+        }
+
+        // Hide completed tasks
+        if (hideCompleted && task.status === 'done') {
+          return false;
+        }
+
+        // Hide low priority tasks
+        if (hideLowPriority && task.priority === 'low') {
+          return false;
+        }
+
+        // Show only blocked tasks (tasks with pending dependencies)
+        if (showOnlyBlocked) {
+          const isBlocked = task.dependencies && task.dependencies.length > 0 && 
+            task.dependencies.some(depId => {
+              const dep = currentTasks.find(t => t.id == depId);
+              return dep && dep.status !== 'done';
+            });
+          if (!isBlocked) {
+            return false;
+          }
+        }
+
+        return true;
+      });
+    }
+
+    // Quick filter functions
+    function showOnlyActive() {
+      // Reset other filters and show only active tasks
+      document.getElementById('status-filter').value = 'all';
+      document.getElementById('hide-completed').checked = true;
+      document.getElementById('hide-low-priority').checked = false;
+      document.getElementById('show-only-blocked').checked = false;
+      
+      // Update button state
+      updateFilterButtonState('show-only-active');
+      renderVisualization();
+    }
+
+    function showOnlyHigh() {
+      // Show only high priority tasks
+      document.getElementById('priority-filter').value = 'high';
+      document.getElementById('hide-completed').checked = false;
+      
+      updateFilterButtonState('show-only-high');
+      renderVisualization();
+    }
+
+    function showWithSubtasks() {
+      // Show only tasks with subtasks
+      document.getElementById('has-subtasks-filter').value = 'yes';
+      document.getElementById('hide-completed').checked = false;
+      
+      updateFilterButtonState('show-with-subtasks');
+      renderVisualization();
+    }
+
+    function showBlocked() {
+      // Show only blocked tasks
+      document.getElementById('show-only-blocked').checked = true;
+      document.getElementById('hide-completed').checked = false;
+      
+      updateFilterButtonState('show-blocked');
+      renderVisualization();
+    }
+
+    function resetFilters() {
+      // Reset all filters to default
+      document.getElementById('status-filter').value = 'all';
+      document.getElementById('priority-filter').value = 'all';
+      document.getElementById('has-subtasks-filter').value = 'all';
+      document.getElementById('hide-completed').checked = false;
+      document.getElementById('hide-low-priority').checked = false;
+      document.getElementById('show-only-blocked').checked = false;
+      document.getElementById('collapse-subtasks').checked = false;
+      document.getElementById('highlight-dependencies').checked = false;
+      
+      updateFilterButtonState('reset');
+      renderVisualization();
+    }
+
+    function updateFilterButtonState(activeFilter) {
+      // Remove active class from all filter buttons
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      
+      // Add active class to the clicked button (if not reset)
+      if (activeFilter !== 'reset') {
+        const buttonMap = {
+          'show-only-active': 0,
+          'show-only-high': 1,
+          'show-with-subtasks': 2,
+          'show-blocked': 3
+        };
+        const buttons = document.querySelectorAll('.filter-btn');
+        if (buttons[buttonMap[activeFilter]]) {
+          buttons[buttonMap[activeFilter]].classList.add('active');
+        }
+      }
+    }
+
+    function setupEventListeners() {
+      // Tag selector
+      document.getElementById('tag-selector').addEventListener('change', (e) => {
+        const newTag = e.target.value;
+        window.location.href = `/?tag=${newTag}`;
+      });
+
+      // Filters
+      document.getElementById('status-filter').addEventListener('change', renderVisualization);
+      document.getElementById('priority-filter').addEventListener('change', renderVisualization);
+      document.getElementById('has-subtasks-filter').addEventListener('change', renderVisualization);
+
+      // View options
+      document.getElementById('show-dependencies').addEventListener('change', renderVisualization);
+      document.getElementById('show-subtasks').addEventListener('change', renderVisualization);
+      document.getElementById('auto-refresh').addEventListener('change', (e) => {
+        if (e.target.checked) {
+          setInterval(refreshData, 5000);
+        }
+      });
+
+      // Show/Hide controls
+      document.getElementById('hide-completed').addEventListener('change', renderVisualization);
+      document.getElementById('hide-low-priority').addEventListener('change', renderVisualization);
+      document.getElementById('show-only-blocked').addEventListener('change', renderVisualization);
+      document.getElementById('collapse-subtasks').addEventListener('change', renderVisualization);
+      document.getElementById('highlight-dependencies').addEventListener('change', renderVisualization);
+
+      // Control buttons
+      document.getElementById('zoom-fit').addEventListener('click', zoomFit);
+      document.getElementById('zoom-reset').addEventListener('click', zoomReset);
+      document.getElementById('layout-toggle').addEventListener('click', toggleLayout);
+      document.getElementById('export-svg').addEventListener('click', exportSVG);
+
+      // Modal close
+      document.querySelector('.close').addEventListener('click', closeModal);
+      window.addEventListener('click', (e) => {
+        if (e.target === document.getElementById('task-modal')) {
+          closeModal();
+        }
+      });
+    }
+
+    function getStatusColor(status) {
+      const colors = {
+        'pending': '#FFC107',
+        'in-progress': '#2196F3',
+        'done': '#4CAF50',
+        'cancelled': '#F44336',
+        'deferred': '#9E9E9E'
+      };
+      return colors[status] || '#E0E0E0';
+    }
+
+    function getPriorityColor(priority) {
+      const colors = {
+        'high': '#F44336',
+        'medium': '#FF9800',
+        'low': '#4CAF50'
+      };
+      return colors[priority] || '#9E9E9E';
+    }
+
+    function showTaskDetails(task) {
+      if (!task.id) return;
+
+      const detailContent = document.getElementById('detail-content');
+      
+      let html = `
+        <div class="task-header">
+          <h4>${task.title}</h4>
+          <div class="task-badges">
+            <span class="badge status-${task.status}">${task.status}</span>
+            <span class="badge priority-${task.priority}">${task.priority}</span>
+            ${task.type ? `<span class="badge type-${task.type}">${task.type}</span>` : ''}
+          </div>
+        </div>
+      `;
+
+      if (task.description) {
+        html += `
+          <div class="detail-section">
+            <strong>Description:</strong>
+            <p>${task.description}</p>
+          </div>
+        `;
+      }
+
+      if (task.details) {
+        html += `
+          <div class="detail-section">
+            <strong>Details:</strong>
+            <div class="details-content">${task.details.replace(/\n/g, '<br>')}</div>
+          </div>
+        `;
+      }
+
+      if (task.testStrategy) {
+        html += `
+          <div class="detail-section">
+            <strong>Test Strategy:</strong>
+            <div class="test-strategy">${task.testStrategy.replace(/\n/g, '<br>')}</div>
+          </div>
+        `;
+      }
+
+      if (task.dependencies && task.dependencies.length > 0) {
+        html += `
+          <div class="detail-section">
+            <strong>Dependencies:</strong>
+            <ul class="dependencies-list">
+              ${task.dependencies.map(dep => `<li>Task ${dep}</li>`).join('')}
+            </ul>
+          </div>
+        `;
+      }
+
+      if (task.subtasks && task.subtasks.length > 0) {
+        html += `
+          <div class="detail-section">
+            <strong>Subtasks (${task.subtasks.length}):</strong>
+            <ul class="subtasks-list">
+              ${task.subtasks.map(subtask => `
+                <li class="subtask-item status-${subtask.status}">
+                  <span class="subtask-title">${subtask.title}</span>
+                  <span class="subtask-status">${subtask.status}</span>
+                </li>
+              `).join('')}
+            </ul>
+          </div>
+        `;
+      }
+
+      html += `
+        <div class="detail-actions">
+          <button onclick="showFullTaskModal(${JSON.stringify(task).replace(/"/g, '&quot;')})" class="action-btn">
+            View Full Details
+          </button>
+        </div>
+      `;
+
+      detailContent.innerHTML = html;
+    }
+
+    function showFullTaskModal(task) {
+      const modal = document.getElementById('task-modal');
+      const modalBody = document.getElementById('modal-body');
+      
+      modalBody.innerHTML = `
+        <h2>${task.title}</h2>
+        <div class="modal-badges">
+          <span class="badge status-${task.status}">${task.status}</span>
+          <span class="badge priority-${task.priority}">${task.priority}</span>
+          <span class="badge">ID: ${task.id}</span>
+        </div>
+        
+        ${task.description ? `
+          <div class="modal-section">
+            <h3>Description</h3>
+            <p>${task.description}</p>
+          </div>
+        ` : ''}
+        
+        ${task.details ? `
+          <div class="modal-section">
+            <h3>Implementation Details</h3>
+            <div class="code-block">${task.details.replace(/\n/g, '<br>')}</div>
+          </div>
+        ` : ''}
+        
+        ${task.testStrategy ? `
+          <div class="modal-section">
+            <h3>Test Strategy</h3>
+            <div class="code-block">${task.testStrategy.replace(/\n/g, '<br>')}</div>
+          </div>
+        ` : ''}
+      `;
+      
+      modal.style.display = 'block';
+    }
+
+    function closeModal() {
+      document.getElementById('task-modal').style.display = 'none';
+    }
+
+    function showTooltip(event, task) {
+      if (!task.title) return;
+      
+      const tooltip = d3.select('body')
+        .append('div')
+        .attr('class', 'tooltip')
+        .style('opacity', 0);
+
+      // Build rich tooltip content
+      let tooltipHTML = `<strong>${task.title}</strong>`;
+      
+      // Basic info section
+      tooltipHTML += `<div class="tooltip-section">`;
+      tooltipHTML += `Status: <span style="color: ${getStatusColor(task.status)}">${task.status}</span><br/>`;
+      tooltipHTML += `Priority: <span style="color: ${getPriorityColor(task.priority)}">${task.priority}</span>`;
+      if (task.id) tooltipHTML += `<br/>ID: ${task.id}`;
+      tooltipHTML += `</div>`;
+
+      // Description section
+      if (task.description) {
+        tooltipHTML += `<div class="tooltip-section">`;
+        tooltipHTML += `<strong>Description:</strong><br/>`;
+        tooltipHTML += task.description.length > 100 
+          ? task.description.substring(0, 100) + '...'
+          : task.description;
+        tooltipHTML += `</div>`;
+      }
+
+      // Dependencies section
+      if (task.dependencies && task.dependencies.length > 0) {
+        tooltipHTML += `<div class="tooltip-section">`;
+        tooltipHTML += `<strong>Dependencies:</strong> ${task.dependencies.join(', ')}`;
+        
+        // Check if any dependencies are not completed
+        const blockedDeps = task.dependencies.filter(depId => {
+          const dep = currentTasks.find(t => t.id == depId);
+          return dep && dep.status !== 'done';
+        });
+        
+        if (blockedDeps.length > 0) {
+          tooltipHTML += `<br/><span style="color: #dc3545;">⚠️ Blocked by: ${blockedDeps.join(', ')}</span>`;
+        }
+        tooltipHTML += `</div>`;
+      }
+
+      // Subtasks section
+      if (task.subtasks && task.subtasks.length > 0) {
+        const completedSubtasks = task.subtasks.filter(st => st.status === 'done').length;
+        const progress = Math.round((completedSubtasks / task.subtasks.length) * 100);
+        
+        tooltipHTML += `<div class="tooltip-section">`;
+        tooltipHTML += `<strong>Subtasks:</strong> ${completedSubtasks}/${task.subtasks.length} completed (${progress}%)`;
+        tooltipHTML += `</div>`;
+      }
+
+      // Test strategy hint
+      if (task.testStrategy) {
+        tooltipHTML += `<div class="tooltip-section">`;
+        tooltipHTML += `<strong>Has test strategy</strong> 🧪`;
+        tooltipHTML += `</div>`;
+      }
+
+      // Context hints
+      tooltipHTML += `<div class="tooltip-section" style="font-size: 11px; color: #aaa;">`;
+      tooltipHTML += `Click for details • Right-click for options`;
+      tooltipHTML += `</div>`;
+
+      tooltip.transition()
+        .duration(200)
+        .style('opacity', .9);
+        
+      tooltip.html(tooltipHTML)
+        .style('left', (event.pageX + 10) + 'px')
+        .style('top', (event.pageY - 28) + 'px');
+    }
+
+    function hideTooltip() {
+      d3.selectAll('.tooltip').remove();
+    }
+
+    function updateStatistics() {
+      const statsContent = document.getElementById('stats-content');
+      const tasks = applyFilters(currentTasks);
+      
+      // Calculate statistics
+      const totalTasks = tasks.length;
+      const completedTasks = tasks.filter(t => t.status === 'done').length;
+      const inProgressTasks = tasks.filter(t => t.status === 'in-progress').length;
+      const pendingTasks = tasks.filter(t => t.status === 'pending').length;
+      const highPriorityTasks = tasks.filter(t => t.priority === 'high').length;
+      const tasksWithSubtasks = tasks.filter(t => t.subtasks && t.subtasks.length > 0).length;
+      
+      const completionPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+      statsContent.innerHTML = `
+        <div class="stat-item">
+          <div class="stat-value">${totalTasks}</div>
+          <div class="stat-label">Total Tasks</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">${completedTasks}</div>
+          <div class="stat-label">Completed</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">${inProgressTasks}</div>
+          <div class="stat-label">In Progress</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">${pendingTasks}</div>
+          <div class="stat-label">Pending</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">${highPriorityTasks}</div>
+          <div class="stat-label">High Priority</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">${completionPercentage}%</div>
+          <div class="stat-label">Complete</div>
+        </div>
+      `;
+    }
+
+    function zoomFit() {
+      const bounds = g.node().getBBox();
+      const parent = g.node().parentElement;
+      const fullWidth = parent.clientWidth;
+      const fullHeight = parent.clientHeight;
+      const width = bounds.width;
+      const height = bounds.height;
+      const midX = bounds.x + width / 2;
+      const midY = bounds.y + height / 2;
+      
+      if (width === 0 || height === 0) return;
+      
+      const scale = 0.9 / Math.max(width / fullWidth, height / fullHeight);
+      const translate = [fullWidth / 2 - scale * midX, fullHeight / 2 - scale * midY];
+      
+      svg.transition()
+        .duration(750)
+        .call(zoom.transform, d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale));
+    }
+
+    function zoomReset() {
+      svg.transition()
+        .duration(750)
+        .call(zoom.transform, d3.zoomIdentity);
+    }
+
+    function toggleLayout() {
+      const layouts = ['tree', 'force', 'circular'];
+      const currentIndex = layouts.indexOf(currentLayout);
+      currentLayout = layouts[(currentIndex + 1) % layouts.length];
+      
+      document.getElementById('layout-toggle').textContent = `📐 Layout: ${currentLayout}`;
+      renderVisualization();
+    }
+
+    function exportSVG() {
+      const svgElement = document.querySelector('#visualization svg');
+      const serializer = new XMLSerializer();
+      const svgString = serializer.serializeToString(svgElement);
+      
+      const blob = new Blob([svgString], { type: 'image/svg+xml' });
+      const url = URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `taskmaster-${currentTag}-${new Date().toISOString().split('T')[0]}.svg`;
+      link.click();
+      
+      URL.revokeObjectURL(url);
+    }
+
+    function refreshData() {
+      fetch('/api/tasks')
+        .then(response => response.json())
+        .then(data => {
+          if (data.tasks && data.tasks[currentTag]) {
+            currentTasks = data.tasks[currentTag].tasks;
+            renderVisualization();
+            updateStatistics();
+          }
+        })
+        .catch(error => console.error('Error refreshing data:', error));
+    }
+
+    function showEmptyState() {
+      const container = document.getElementById('visualization');
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">📋</div>
+          <h3>No tasks found</h3>
+          <p>No tasks match the current filters for tag "${currentTag}"</p>
+          <button onclick="location.reload()" class="refresh-btn">Refresh</button>
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html> 
